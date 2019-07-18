@@ -3,6 +3,7 @@ import numpy as np
 import os
 import cv2
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 tf.reset_default_graph()
 X_in = tf.placeholder(dtype=tf.float32, shape=[None, 64, 64, 3], name='X')
@@ -96,8 +97,22 @@ for i in range(num_epochs):
     print("Epoch %d" % int(i + 1))
     _, loss_val = sess.run([optimizer, loss], feed_dict={X_in: X_train, Y: Y_train, keep_prob: 0.8})
     print("Val loss = %s" % loss_val)
-    """
     if not i % 2:
+        Y_pred_test = sess.run(img, feed_dict={X_in: X_test, keep_prob: 1})
+        Y_pred_test_r = np.reshape(Y_pred_test, (Y_test.shape[0], 64 * 64 * 3))
+        Y_test_r = np.reshape(Y_test, (Y_test.shape[0], 64 * 64 * 3))
+        mae = mean_absolute_error(y_pred=Y_pred_test_r, y_true=Y_test_r)
+        mse = mean_squared_error(y_pred=Y_pred_test_r, y_true=Y_test_r)
+        print("Test MAE = " + str(mae))
+        print("Test MSE = " + str(mse))
+        Y_pred_train = sess.run(img, feed_dict={X_in: X_train, keep_prob: 1})
+        Y_pred_train_r = np.reshape(Y_pred_train, (Y_train.shape[0], 64 * 64 * 3))
+        Y_train_r = np.reshape(Y_train, (Y_train.shape[0], 64 * 64 * 3))
+        mae = mean_absolute_error(y_pred=Y_pred_train_r, y_true=Y_train_r)
+        mse = mean_squared_error(y_pred=Y_pred_train_r, y_true=Y_train_r)
+        print("Train MAE = " + str(mae))
+        print("Train MSE = " + str(mse))
+        """
         init1 = tf.global_variables_initializer()
         sess.run(init1)
         init2 = tf.local_variables_initializer()
@@ -112,7 +127,8 @@ for i in range(num_epochs):
         print("Train acc")
         print(sess.run([train_acc, train_op], feed_dict={l_train: Y_train, l_test: Y_pred_train}))
         """
-    
+
+
 savePath = saver.save(sess, 'vaemodel1.ckpt')
 
 """
