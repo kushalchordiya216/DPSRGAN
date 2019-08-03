@@ -1,10 +1,11 @@
+# %%
 import tensorflow as tf
 import numpy as np
 import os
 import cv2
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-
+# %%
 tf.reset_default_graph()
 X_in = tf.placeholder(dtype=tf.float32, shape=[None, 64, 64, 3], name='X')
 Y = tf.placeholder(dtype=tf.float32, shape=[None, 64, 64, 3], name='Y')
@@ -16,10 +17,10 @@ pred_train = tf.placeholder(dtype=tf.float32, shape=[None, 64, 64, 3], name='pre
 keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
 n_latent = 512
 num_epochs = 10
-
+# %%
 X = []
 Y_im = []
-
+# %%
 for img in os.listdir('imagenet_64x64'):
     img_path = str('imagenet_64x64input/' + str(img))
     img_path2 = str('imagenet_64x64/' + str(img))
@@ -31,7 +32,7 @@ for img in os.listdir('imagenet_64x64'):
     Y_im.append(pic2)
     if len(X) == 100:
         break
-
+# %%
 X = np.array(X)
 Y_im = np.array(Y_im)
 X = X.astype(np.float32)
