@@ -6,7 +6,8 @@ import keras
 from tqdm import tqdm
 
 epochs = 400
-batch_size = 100
+batch_size = 200
+dvsgr = 2
 
 (X_train, _), (_, _) = keras.datasets.mnist.load_data()
 cv2.imwrite('tp.jpg', X_train[0])
@@ -26,16 +27,15 @@ for file in iterator:
 """
 
 X_train = np.array(X_train)
-#X_train = X_train.astype(float)/255.0
+print(X_train.shape)
+X_train = X_train.astype(float)/255.0
 
 
 def ResBlock(x, filters):
     res = x
     x = L.Conv2D(filters=filters, kernel_size=(3, 3), padding='same')(x)
-    x = L.BatchNormalization()(x)
     x = L.ReLU()(x)
     x = L.Conv2D(filters=filters, kernel_size=(3, 3), padding='same')(x)
-    x = L.BatchNormalization()(x)
     x = L.ReLU()(x)
     x = L.Add()([x, res])
     return x
@@ -54,7 +54,7 @@ def create_generator():
     x = L.BatchNormalization()(x)
     x = ResBlock(x, 8)
     x = L.BatchNormalization()(x)
-    #x = L.Dropout(0.2)(x)
+    x = L.Dropout(0.2)(x)
 
     x = L.Conv2D(filters=16, kernel_size=(3, 3),
                  padding='same', activation='relu')(x)
@@ -65,7 +65,7 @@ def create_generator():
     x = L.BatchNormalization()(x)
     x = ResBlock(x, 16)
     x = L.BatchNormalization()(x)
-    #x = L.Dropout(0.2)(x)
+    x = L.Dropout(0.2)(x)
 
     x = L.Conv2D(filters=32, kernel_size=(3, 3),
                  padding='same', activation='relu')(x)
@@ -76,36 +76,33 @@ def create_generator():
     x = L.BatchNormalization()(x)
     x = ResBlock(x, 32)
     x = L.BatchNormalization()(x)
-    #x = L.Dropout(0.2)(x)
+    x = L.Dropout(0.2)(x)
 
     x = L.Conv2D(filters=1, kernel_size=(3, 3),
                  padding='same', activation='sigmoid')(x)
-    x = L.Lambda(lambda y: y*255.0)(x)
+    #x = L.Lambda(lambda y: y*255.0)(x)
     gen = Model(inputs=img, outputs=x)
     gen.compile(loss=keras.losses.binary_crossentropy,
-                optimizer=keras.optimizers.adamax(0.001))
+                optimizer=keras.optimizers.adam(0.001))
     return gen
 
 
 def create_discriminator():
     inp = L.Input(shape=(28, 28, 1))
     x = L.Conv2D(filters=8, kernel_size=(3, 3), padding='valid')(inp)
-    #x = L.BatchNormalization()(x)
     x = L.ReLU()(x)
-    #x = L.Dropout(0.2)(x)
+    x = L.Dropout(0.2)(x)
     x = L.Conv2D(filters=16, kernel_size=(3, 3), padding='valid')(x)
-    #x = L.BatchNormalization()(x)
     x = L.ReLU()(x)
-    #x = L.Dropout(0.2)(x)
+    x = L.Dropout(0.2)(x)
     x = L.Conv2D(filters=32, kernel_size=(3, 3), padding='valid')(x)
-    #x = L.BatchNormalization()(x)
     x = L.ReLU()(x)
-    #x = L.Dropout(0.2)(x)
+    x = L.Dropout(0.2)(x)
     x = L.Flatten()(x)
     x = L.Dense(1, activation='sigmoid')(x)
     dis = Model(inputs=inp, outputs=x)
     dis.compile(loss=keras.losses.binary_crossentropy,
-                optimizer=keras.optimizers.adamax(0.001))
+                optimizer=keras.optimizers.adam(0.001))
     return dis
 
 
@@ -116,7 +113,7 @@ def create_gan(discriminator, generator):
     gan_output = discriminator(x)
     gan = Model(inputs=gan_input, outputs=gan_output)
     gan.compile(loss=keras.losses.binary_crossentropy,
-                optimizer=keras.optimizers.adamax(0.001))
+                optimizer=keras.optimizers.adam(0.001))
     return gan
 
 
@@ -140,15 +137,15 @@ for e in range(1, epochs+1):
         y_dis = np.zeros(2*batch_size)
         y_dis[:batch_size] = 1
         discriminator.trainable = True
-        for _ in range(10):
+        for _ in range(dvsgr):
             discriminator_loss = discriminator.train_on_batch(X, y_dis)
         noise = np.random.normal(0, 1, [batch_size, 100])
         y_gen = np.ones(batch_size)
         discriminator.Trainable = False
         gan_loss = gan.train_on_batch(noise, y_gen)
-    pr = generator.predict(np.random.normal(0, 1, [1, 100]), batch_size=1)
+    pr = generator.predict(np.random.normal(0, 1, [1, 100]))
     pr = pr.reshape(28, 28)
-    pr = pr.astype(int)
+    pr = (pr*255.0).astype(int)
     print(pr)
     cv2.imwrite('prmnist'+str(e)+'.jpg', pr)
     print("Discriminator loss="+str(discriminator_loss))
@@ -160,6 +157,6 @@ generator.save('mnistgenerator1.hdf5')
 discriminator.save('mnistdiscriminator1.hdf5')
 pr = generator.predict(np.random.normal(0, 1, [1, 100]), batch_size=1)
 pr = pr.reshape(28, 28)
-pr = pr.astype(int)
+pr = (pr*255.0).astype(int)
 print(pr)
 cv2.imwrite('mnistpr.jpg', pr)
