@@ -66,9 +66,9 @@ def ResBlock(x, filters):
     return x
 
 
-def gan_loss(y_true, y_pred):
+def perceptual_loss(y_true, y_pred):
     p_loss = K.mean(K.square(vggmodel(y_true)-vggmodel(y_pred)))
-    return (binary_crossentropy(y_true, y_pred) + 0.001*p_loss)
+    return 0.001*p_loss
 
 
 def create_generator():
@@ -138,8 +138,9 @@ def create_gan(discriminator, generator):
     gan_input = L.Input(shape=(64, 64, 3))
     x = generator(gan_input)
     gan_output = discriminator(x)
-    gan = Model(inputs=gan_input, outputs=gan_output)
-    gan.compile(loss=gan_loss, optimizer=adam(0.001))
+    gan = Model(inputs=gan_input, outputs=[x, gan_output])
+    gan.compile(loss=[perceptual_loss, binary_crossentropy],
+                optimizer=adam(0.001))
     return gan
 
 
@@ -176,20 +177,26 @@ for e in range(1, epochs+1):
         y_dis[:batch_size] = 1
         discriminator.trainable = True
         sampled_inputs = []
+        image_batch = []
         for _ in range(dvsgr):
             discriminator_loss = discriminator.train_on_batch(X, y_dis)
         ls2 = random.choices(outputs_list, k=batch_size)
         for file in ls2:
+            img_path1 = str('../../celeba_resized/'+str(file))
             img_path2 = str('../../celeba_resized_inp/'+str(file))
+            pic1 = cv2.imread(img_path1)
             pic2 = cv2.imread(img_path2)
             sampled_inputs.append(pic2)
+            image_batch.append(pic1)
         sampled_inputs = np.array(sampled_inputs)
         sampled_inputs = sampled_inputs.astype(float)/255.0
+        image_batch = np.array(image_batch)
+        image_batch = image_batch.astype(float)/255.0
         # sampled_inputs = X_train[np.random.randint(
         #    low=0, high=X_train.shape[0], size=batch_size)]
         y_gen = np.ones(batch_size)
         discriminator.Trainable = False
-        gan_loss = gan.train_on_batch(sampled_inputs, y_gen)
+        gan_loss = gan.train_on_batch(sampled_inputs, [image_batch, y_gen])
     pr = generator.predict(
         np.reshape(X_test[np.random.randint(low=0, high=X_test.shape[0])], (1, 64, 64, 3)))
     pr = (pr*255.0).astype(int)
