@@ -7,7 +7,7 @@ from tqdm import tqdm
 # %%
 L = tf.keras.layers
 M = tf.keras.models
-PARAMS = {'n_latent': 100, 'batch_size': 128, 'epochs': 50, 'shuffle_size': 5000, 'prefetch_size': 256,
+PARAMS = {'n_latent': 100, 'batch_size': 128, 'epochs': 50, 'shuffle_size': 256, 'prefetch_size': 512,
           'path': '/home/kushal/WorkSpace/Python/Super-Resolution/data/valid_64x64/',
           'shape': [64, 64, 3], 'looping_factor': 2}
 
@@ -132,7 +132,6 @@ if __name__ == '__main__':
     Vanilla_GAN = VanillaGAN()
     d_p = DataPipeline(path=PARAMS['path'], batch_size=PARAMS['batch_size'],
                        shuffle_size=PARAMS['shuffle_size'], prefetch_buffer=PARAMS['prefetch_size'])
-    input("Continue?[y/n]")
     cur_disc_loss = 100000
     cur_gen_loss = 100000
     train_dataset = d_p.pipe_lining(d_p.read_dataset())
@@ -141,6 +140,7 @@ if __name__ == '__main__':
 
     for epoch in range(Vanilla_GAN.epochs):
         for batch in tqdm(train_dataset):
+            batch = tf.cast(batch, dtype=tf.float32)
             Vanilla_GAN.train(batch)
             print(f"for epoch {epoch} gen_loss is {avg_gen_loss} disc_loss is {avg_disc_loss}")
 

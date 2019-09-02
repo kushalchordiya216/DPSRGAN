@@ -9,3 +9,4 @@ config.ini
 *.png
 .vscode/settings.json
 Theory Sources/
+.idea/
