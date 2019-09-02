@@ -6,14 +6,13 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 class DataPipeline:
-    def __init__(self, path, batch_size=128, shuffle_size=5000, prefetch_buffer=AUTOTUNE):
+    def __init__(self, path, batch_size=128, shuffle_size=256, prefetch_buffer=AUTOTUNE):
         self.path = path
         self.batch_size = batch_size
         self.shuffle_size = shuffle_size
         self.prefetch_buffer = prefetch_buffer
 
     def preprocess_image(self):
-
         pass
 
     def read_image(self, img_path):
@@ -34,7 +33,7 @@ class DataPipeline:
         return image_ds
 
     def pipe_lining(self, image_ds):
-        ds = image_ds.shuffle(buffer_size=5000)
+        ds = image_ds.shuffle(buffer_size=256)
         ds = ds.repeat()
         ds = ds.batch(self.batch_size)
         ds = ds.prefetch(buffer_size=self.prefetch_buffer)
