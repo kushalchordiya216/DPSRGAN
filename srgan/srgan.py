@@ -3,7 +3,8 @@ from keras import layers as L
 import cv2
 import numpy as np
 from keras.models import Model
-import keras
+from keras.losses import binary_crossentropy
+from keras.optimizers import adam
 from tqdm import tqdm
 import random
 from keras.applications.vgg19 import VGG19
@@ -67,7 +68,7 @@ def ResBlock(x, filters):
 
 def gan_loss(y_true, y_pred):
     p_loss = K.mean(K.square(vggmodel(y_true)-vggmodel(y_pred)))
-    return (keras.losses.binary_crossentropy(y_true, y_pred) + 0.001*p_loss)
+    return (binary_crossentropy(y_true, y_pred) + 0.001*p_loss)
 
 
 def create_generator():
@@ -108,8 +109,8 @@ def create_generator():
     x = L.Conv2D(filters=3, kernel_size=(3, 3),
                  padding='same', activation='sigmoid')(x)
     gen = Model(inputs=img, outputs=x)
-    gen.compile(loss=keras.losses.binary_crossentropy,
-                optimizer=keras.optimizers.adam(0.001))
+    gen.compile(loss=binary_crossentropy,
+                optimizer=adam(0.001))
     return gen
 
 
@@ -127,8 +128,8 @@ def create_discriminator():
     x = L.Flatten()(x)
     x = L.Dense(1, activation='sigmoid')(x)
     dis = Model(inputs=inp, outputs=x)
-    dis.compile(loss=keras.losses.binary_crossentropy,
-                optimizer=keras.optimizers.adam(0.001))
+    dis.compile(loss=binary_crossentropy,
+                optimizer=adam(0.001))
     return dis
 
 
@@ -138,7 +139,7 @@ def create_gan(discriminator, generator):
     x = generator(gan_input)
     gan_output = discriminator(x)
     gan = Model(inputs=gan_input, outputs=gan_output)
-    gan.compile(loss=gan_loss, optimizer=keras.optimizers.adam(0.001))
+    gan.compile(loss=gan_loss, optimizer=adam(0.001))
     return gan
 
 
