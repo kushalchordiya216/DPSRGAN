@@ -1,32 +1,29 @@
 # %%
-import tensorflow as tf
-
-K = tf.keras.backend
-Layer = tf.keras.layers.Layer
-
-L = tf.keras.layers
-A = tf.keras.activations
-M = tf.keras.models
+import keras.layers as L
 
 
 # %%
-def resBlock(input_tensor, activation, n_filters):
+def resBlock(input_tensor, n_filters):
     conv1 = L.Conv2DTranspose(filters=n_filters, kernel_size=(
-        3, 3), padding='same', activation=activation)(input_tensor)
+        3, 3), padding='same')(input_tensor)
+    conv1 = L.PReLU(alpha_initializer='zeros', shared_axes=[1, 2])(conv1)
     conv2 = L.Conv2DTranspose(filters=n_filters, kernel_size=(
-        3, 3), padding='same', activation=activation)(conv1)
+        3, 3), padding='same')(conv1)
+    conv2 = L.PReLU(alpha_initializer='zeros', shared_axes=[1, 2])(conv2)
     input_3 = L.add([conv2, conv1])
     conv3 = L.Conv2DTranspose(filters=n_filters, kernel_size=(
         3, 3), padding='same')(input_3)
+    conv3 = L.PReLU(alpha_initializer='zeros', shared_axes=[1, 2])(conv3)
     input_4 = L.add([conv3, input_3, conv1])
     final_layer = L.Conv2DTranspose(filters=n_filters, padding='same',
-                                    kernel_size=(3, 3), activation=activation)(input_4)
+                                    kernel_size=(3, 3))(input_4)
+    final_layer = L.PReLU(alpha_initializer='zeros', shared_axes=[1, 2])(final_layer)
     return final_layer
 
 
 # %%
 
-def RRDB(input_tensor, activation, n_filters):
+def RRDB(input_tensor, n_filters):
     """
     Residual within residual block.
     The function is a Convolutional ResNet consisting on three blocks which are all residual blocks in turn
@@ -44,11 +41,9 @@ def RRDB(input_tensor, activation, n_filters):
 
     :returns final_layer: the output layer of the RRDB, Has the same shape as input_tensor
     """
-    output1 = resBlock(input_tensor, activation, n_filters)
+    output1 = resBlock(input_tensor, n_filters)
     input2 = L.add([input_tensor, output1])
-    output2 = resBlock(input2, activation, n_filters)
+    output2 = resBlock(input2, n_filters)
     input3 = L.add([input_tensor, input2, output2])
-    output3 = resBlock(input3, activation, n_filters)
+    output3 = resBlock(input3, n_filters)
     return output3
-
-

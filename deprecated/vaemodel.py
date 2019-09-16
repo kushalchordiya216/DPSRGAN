@@ -1,10 +1,12 @@
 # %%
-import tensorflow as tf
-import numpy as np
 import os
+
 import cv2
-from sklearn.model_selection import train_test_split
+import numpy as np
+import tensorflow as tf
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.model_selection import train_test_split
+
 # %%
 tf.reset_default_graph()
 X_in = tf.placeholder(dtype=tf.float32, shape=[None, 64, 64, 3], name='X')

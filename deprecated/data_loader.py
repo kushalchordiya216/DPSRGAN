@@ -1,6 +1,7 @@
 # %%
-import tensorflow as tf
 import os
+
+import tensorflow as tf
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 

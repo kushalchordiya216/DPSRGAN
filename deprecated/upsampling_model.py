@@ -1,14 +1,17 @@
 # %%
 print('Importing libraries ....')
 
+import os
+
+import cv2
 import keras
+import numpy as np
 from keras.callbacks import TensorBoard
 from keras.layers import Conv2D, BatchNormalization, MaxPool2D, UpSampling2D
 from keras.models import Sequential
-import numpy as np
-import cv2
-import os
 from tqdm import tqdm
+
+
 # %%
 
 

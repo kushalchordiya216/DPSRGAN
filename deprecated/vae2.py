@@ -1,11 +1,13 @@
 # VAE model written with tf2.0
 # %%
-import tensorflow as tf
-import cv2
 import os
 import time
-from tqdm import tqdm
+
+import cv2
 import numpy as np
+import tensorflow as tf
+from tqdm import tqdm
+
 # %%
 
 FLAGS = {'batch_size': 128, 'epochs': 30, 'shuffle_buffer_size': 100}
