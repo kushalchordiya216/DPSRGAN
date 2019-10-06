@@ -1,15 +1,20 @@
+"""
+Includes utilities for building srgan, like the generator and discriminator blocks
+"""
 import os
 import random
 
 import cv2
 import numpy as np
+
 from keras.applications import VGG19
 from keras.callbacks import TensorBoard
+from tensorflow import Summary
 from keras.layers import Conv2D, Conv2DTranspose, PReLU, LeakyReLU, BatchNormalization
 from keras.models import Model
-from tensorflow import Summary
+from keras.utils import plot_model
 
-from srgan.resnet_arch import RRDB
+from .resnet_arch import RRDB
 
 PARAMS = {'n_latent': 100, 'batch_size': 32, 'epochs': 50, 'steps_per_epoch': 200,
           'path_input': '/home/kushal/WorkSpace/Python/data/celeba_sr/celeba_resized_inp/',
@@ -17,19 +22,25 @@ PARAMS = {'n_latent': 100, 'batch_size': 32, 'epochs': 50, 'steps_per_epoch': 20
           'disc_looping_factor': 2}
 
 
-def generator_block(input_image):
-    x = Conv2D(filters=8, kernel_size=(
+def generator_block(input_image, filters=8):
+    """
+    Takes an image and puts it though a Conv->RRDB->ConvTranspose architecture
+
+    :param input_image: matrix with dimensions (h,w,c)
+    :return: matrix with the same dimensions as input matrix
+    """
+    x = Conv2D(filters=filters, kernel_size=(
         5, 5), padding='valid')(input_image)
     x = PReLU(alpha_initializer='zeros', shared_axes=[1, 2])(x)
-    x = RRDB(x, 8)
-    x = Conv2DTranspose(filters=8, kernel_size=(
+    x = RRDB(x, filters)
+    x = Conv2DTranspose(filters=filters, kernel_size=(
         5, 5), padding='valid')(x)
     x = PReLU(alpha_initializer='zeros', shared_axes=[1, 2])(x)
     return x
 
 
-def discriminator_block(inputs):
-    x = Conv2D(kernel_size=(5, 5), filters=4, padding='valid',
+def discriminator_block(inputs, filters=8):
+    x = Conv2D(kernel_size=(5, 5), filters=filters, padding='valid',
                input_shape=(64, 64, 3))(inputs)
     x = LeakyReLU(alpha=0.2)(x)
     x = BatchNormalization()(x)
@@ -53,9 +64,11 @@ def build_perceptual() -> Model:
     for layer in vgg_model.layers:
         layer.trainable = False
     outputs = [vgg_model.get_layer('block5_conv4').output, vgg_model.get_layer('block4_conv4').output,
-               vgg_model.get_layer('block3_conv4'), vgg_model.get_layer('block2_conv2')]
+               vgg_model.get_layer('block3_conv4').output, vgg_model.get_layer('block2_conv2').output]
     perceptual_model = Model(inputs=vgg_model.input, outputs=outputs)
     perceptual_model.name = "PerceptualModel"
+    plot_model(model=perceptual_model,to_file="srgan/created_models/vgg19_perceptual_model.png")
+    print(perceptual_model.summary())
     return perceptual_model
 
 

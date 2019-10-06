@@ -2,14 +2,20 @@
 from datetime import datetime
 
 import tensorflow as tf
-from keras.layers import (Dense, Flatten, Input)
+from keras.layers import (Dense, Flatten, Input, Conv2D)
 from keras.losses import binary_crossentropy, mean_squared_error
 from keras.optimizers import Adam
 from keras.utils import plot_model
+from keras.callbacks import TensorBoard
+from keras.models import Model
+from .utils import generator_block,discriminator_block,image_loader,build_perceptual,write_logs
+from keras.backend import get_value
+
+import os
+import cv2
+import sys
+import numpy as np
 from tqdm import tqdm
-
-from srgan.utils import *
-
 # %%
 PARAMS = {'n_latent': 100, 'batch_size': 32, 'epochs': 50, 'steps_per_epoch': 200,
           'path_input': '/home/kushal/WorkSpace/Python/data/celeba_sr/celeba_resized_inp/',
@@ -56,10 +62,13 @@ class SR_GAN(tf.keras.Model):
             assert len(outputs_pred) == 4
             p_loss = 0
             for output_true, output_pred in zip(outputs_true, outputs_pred):
-                p_loss += mean_squared_error(y_true=output_true, y_pred=output_pred)
+                p_loss += get_value(mean_squared_error(y_true=output_true, y_pred=output_pred))
             return 0.001 * p_loss
         except AssertionError as ae:
             print(ae, "Vggmodel outputs not as expected, please check")
+
+    def build_perceptual(self)->Model:
+        pass
 
     def build_generator(self) -> Model:
         """
@@ -67,25 +76,26 @@ class SR_GAN(tf.keras.Model):
         accepts input of shape (64,64,3), i.e. up sized images
         :rtype: tf.keras.model.Model
         """
-
+        print("building Generator ....")
         input_image = Input(shape=(64, 64, 3))
-        x = generator_block(input_image=input_image)
-        x = generator_block(input_image=x)
-        x = generator_block(input_image=x)
-
+        x = generator_block(input_image=input_image,filters=8)
+        x = generator_block(input_image=x,filters=16)
+        x = generator_block(input_image=x,filters=8)
+        x = Conv2D(filters=3,kernel_size=(5,5), padding='same')(x)
         g_model = Model(input_image, x)
         g_model.name = "Generator"
         g_model.compile(loss=binary_crossentropy,
                         optimizer=self.optimizer)
 
-        plot_model("./created_models/RRDB_Generator.png", g_model)
+        plot_model(g_model, "srgan/created_models/RRDB_Generator.png")
+        print(g_model.summary())
         return g_model
 
     def build_discriminator(self) -> Model:
-        # TODO: Make less computationally expensive
         """
         :rtype: tf.keras.models.Model
         """
+        print("building Discriminator ....")
         inputs = Input(shape=(64, 64, 3))
         x = discriminator_block(inputs)
         x = discriminator_block(x)
@@ -99,18 +109,21 @@ class SR_GAN(tf.keras.Model):
         d_model = Model(inputs, x)
         d_model.name = 'Discriminator'
         d_model.compile(loss=binary_crossentropy, optimizer=self.optimizer)
-        plot_model("./created_models/RRDB_discriminator.png", d_model)
+        plot_model(d_model, "srgan/created_models/RRDB_discriminator.png")
+        print(d_model.summary())
         return d_model
 
     def build_GAN(self) -> Model:
+        print("building GAN ....")
         input_images = Input(shape=(64, 64, 3))
         x = self.generator(input_images)
         output = self.discriminator(x)
+        perceptual_output = self.perceptual_model(x)
         gan = Model(inputs=input_images, outputs=[output, x])
         self.discriminator.trainable = False
         gan.compile(optimizer=self.optimizer, loss=[binary_crossentropy, self.perceptual_loss])
         gan.name = 'SRGAN'
-        plot_model("./created_models/RRDB_GAN.png", gan)
+        plot_model(gan, "srgan/created_models/RRDB_GAN.png")
         return gan
 
     def train_epoch(self, g_logs=0, d_loss=0):
