@@ -1,13 +1,10 @@
 .vscode
 data/
-Linnaeus 5 32x32
-Linnaeus 5 64x64
-valid_32x32
-valid_64x64
-config.ini
 *.jpg
 *.png
-.vscode/settings.json
-Theory Sources/
 .idea/
 *.pyc
+sr/*
+images/*
+keras/*
+lightning_logs/*
