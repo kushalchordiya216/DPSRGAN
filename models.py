@@ -1,135 +1,127 @@
+import os
+from collections import OrderedDict
+
+import pytorch_lightning as pl
+from pytorch_lightning import loggers as pl_loggers
+from pytorch_lightning.callbacks import ModelCheckpoint
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torchsummary import summary
-from torchvision import models
+from torch.optim import Adam
+import torchvision
+from torchvision.transforms import ToPILImage
 
-# ############################################## Generator ##################################################
+from networks import Generator, Discriminator, PerceptionNet
+from dataloader import SRDataLoader, recursiveResize
+from losses import ContentLoss
+
+content_loss = ContentLoss()
 
 
-class GeneratorHead(nn.Module):
+class PreTrainGenModel(pl.LightningModule):
     def __init__(self):
-        super(GeneratorHead, self).__init__()
-        self.conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=9, stride=1, padding=4)
-        self.PReLU = nn.PReLU(64)
+        super().__init__()
+        self.netG = Generator()
+        self.netG.cuda()
 
-    def forward(self, inp: Tensor):
-        return self.PReLU(self.conv(inp))
+    def forward(self, x):
+        return self.netG(x)
 
+    def training_step(self, batch, batch_idx):
+        lr, hr, _ = batch
+        sr = self(lr)
+        loss = F.mse_loss(sr, hr) + content_loss(sr, hr)
 
-class ResBlock(nn.Module):
-    def __init__(self):
-        super(ResBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.bn = nn.BatchNorm2d(num_features=64)
-        self.PReLU = nn.PReLU(64)
+        result = pl.TrainResult(loss)
+        result.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)
+        return result
 
-    def forward(self, inp: Tensor):
-        X: Tensor = self.PReLU(self.bn(self.conv(inp)))
-        X: Tensor = self.bn(self.conv(X))
-        return X.add(inp)
+    def validation_step(self, batch, batch_idx):
+        lr, hr, _ = batch
+        sr = self(lr)
+        loss = F.mse_loss(sr, hr) + content_loss(sr, hr)
+        return {'val_loss': loss}
 
+    def validation_epoch_end(self, outputs):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        return {'val_loss': val_loss_mean}
 
-class UpSample(nn.Module):
-    def __init__(self):
-        super(UpSample, self).__init__()
-        self.main = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=256, kernel_size=3, stride=1, padding=1),
-            nn.PixelShuffle(upscale_factor=2),
-            nn.PReLU(64)
-        )
-
-    def forward(self, inp: Tensor):
-        return self.main(inp)
+    def configure_optimizers(self):
+        return Adam(self.netG.parameters(), lr=0.0002)
 
 
-class Generator(nn.Module):
-    def __init__(self):
-        super(Generator, self).__init__()
-        self.head = GeneratorHead()
-        self.conv1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.bn = nn.BatchNorm2d(num_features=64)
-        self.RRDB = nn.Sequential(*[ResBlock() for _ in range(16)])
-        self.conv2 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=9, stride=1, padding=4)
-        self.tail = nn.Sequential(UpSample(), UpSample(), self.conv2)
+class SRGAN(pl.LightningModule):
+    def __init__(self, hparams):
+        super(SRGAN, self).__init__()
+        self.hparams = hparams
 
-    def forward(self, inp: Tensor) -> Tensor:
-        preRRDB: Tensor = self.head(inp)
-        X: Tensor = self.RRDB(preRRDB)
-        X: Tensor = self.bn(self.conv1(X))
-        X: Tensor = X.add(preRRDB)  # skip conn
-        X: Tensor = self.tail(X)
-        return X
+        self.netG: nn.Module = Generator()
+        self.netD: nn.Module = Discriminator()
 
-# ################################################ Discriminator ###############################################
+        self.generated_imgs = None
+        self.last_imgs = None
 
+    def forward(self, z):
+        return self.netG(z)
 
-class DiscriminatorHead(nn.Module):
-    def __init__(self):
-        super(DiscriminatorHead, self).__init__()
-        self.conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1)
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2)
+    def adversarial_loss(self, y_hat, y):
+        return F.binary_cross_entropy(y_hat, y)
 
-    def forward(self, inp: Tensor):
-        return self.lrelu(self.conv(inp))
+    def training_step(self, batch, batch_nb, optimizer_idx):
+        lr, hr, interpolated_lr = batch
+        self.last_imgs: Tensor = hr
+        self.generated_imgs: Tensor = self(lr)
+        if optimizer_idx == 1:
+            real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
+            # with torch.no_grad():
+            D_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
 
-class DiscriminatorConvBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, stride: int):
-        super(DiscriminatorConvBlock, self).__init__()
-        self.main = nn.Sequential(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride),
-                                  nn.BatchNorm2d(num_features=out_channels),
+            g_loss = 0.001 * self.adversarial_loss(D_fake, real) + \
+                content_loss(self.generated_imgs, hr)
 
-                                  nn.LeakyReLU(negative_slope=0.2))
+            tqdm_dict = {'g_loss': g_loss}
+            output = OrderedDict({
+                'loss': g_loss,
+                'progress_bar': tqdm_dict,
+                'log': tqdm_dict
+            })
+            return output
 
-    def forward(self, inp: Tensor):
-        return self.main(inp)
+        elif optimizer_idx == 0:
+            print("Disc train")
+            real = (0.3)*torch.rand((hr.size(0), 1, 5, 5), device=self.device)+0.7
+            fake = (0.3)*torch.rand((hr.size(0), 1, 5, 5), device=self.device)
+            # label smoothing, betwen 0.7-1.0 for real and 0.0 to 1.2 for fake
 
+            real_loss = self.adversarial_loss(self.netD(hr, interpolated_lr), real)
+            fake_loss = self.adversarial_loss(self.netD(self.generated_imgs.detach(), interpolated_lr), fake)
 
-class DiscriminatorTail(nn.Module):
-    def __init__(self):
-        super(DiscriminatorTail, self).__init__()
-        self.linear1 = nn.Linear(in_features=12800, out_features=1024)
-        self.linear2 = nn.Linear(in_features=1024, out_features=1)
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2)
+            d_loss = (fake_loss + real_loss)/2
+            tqdm_dict = {'d_loss': d_loss}
+            output = OrderedDict({
+                'loss': d_loss,
+                'progress_bar': tqdm_dict,
+                'log': tqdm_dict
+            })
+            return output
 
-    def forward(self, inp: Tensor):
-        X: Tensor = inp.view(inp.size(0), -1)
-        X: Tensor = self.lrelu(self.linear1(X))
-        return torch.sigmoid(self.linear2(X))
+    def validation_step(self, batch, batch_idx):
+        lr, hr, interpolated_lr = batch
+        sr = self(lr)
+        D_fake = self.netD(sr, interpolated_lr)
+        real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
+        val_loss = self.adversarial_loss(D_fake, real) + \
+            content_loss(sr, hr)
+        return {'val_loss': val_loss}
 
-class Discriminator(nn.Module):
-    def __init__(self):
-        super(Discriminator, self).__init__()
-        self.head = DiscriminatorHead()
-        self.body = nn.Sequential(DiscriminatorConvBlock(64, 64, 2),
-                                  DiscriminatorConvBlock(64, 128, 1),
-                                  DiscriminatorConvBlock(128, 128, 2),
-                                  DiscriminatorConvBlock(128, 256, 1),
-                                  DiscriminatorConvBlock(256, 256, 2),
-                                  DiscriminatorConvBlock(256, 512, 1),
-                                  DiscriminatorConvBlock(512, 512, 2),
-                                  )
-        self.tail = DiscriminatorTail()
+    def validation_epoch_end(self, outputs):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        return {'val_loss': val_loss_mean}
 
-    def forward(self, inp: Tensor) -> Tensor:
-        X: Tensor = self.head(inp)
-        X: Tensor = self.body(X)
-        X: Tensor = self.tail(X)
-        return X
-
-# ################################################# Perceptual Net ################################################
-
-
-class PerceptionNet(nn.Module):
-    def __init__(self):
-        super(PerceptionNet, self).__init__()
-        modules = list(models.vgg19(pretrained=True).children())[0]
-        self.main = nn.Sequential(*modules)
-        for param in self.main.parameters():
-            param.requires_grad = False
-
-    def forward(self, inp):
-        return self.main(inp)
+    def configure_optimizers(self):
+        optG = Adam(self.netG.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
+        optD = Adam(self.netD.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
+        return [optD, optG], []  # second array is for lr schedulers if needed

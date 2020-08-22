@@ -1,102 +1,49 @@
 import os
+from argparse import Namespace
 from collections import OrderedDict
+from PIL import Image
+from torchvision.transforms import ToPILImage,  ToTensor
+from torchvision.utils import save_image
 
 import torch
-from torch import Tensor
-import torch.nn.functional as F
-from torch.optim import Adam
-
 import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from models import Generator, Discriminator, PerceptionNet
-from dataloader import SRDataLoader
+from dataloader import SRDataLoader, recursiveResize
+from models import SRGAN, PreTrainGenModel
+from callbacks import LogImages
 
+args = {
+    'batch_size': 1,
+    'lr': 0.0002,
+    'b1': 0.5,
+    'b2': 0.999,
+    'data_dir': './images/*.jpg',
+}
+hparams = Namespace(**args)
 
-class SRGAN(pl.LightningModule):
-    def __init__(self, *args, **kwargs):
-        super(SRGAN, self).__init__(*args, **kwargs)
-        self.ngpu = 1
-        self.device = torch.device("cuda:0" if (torch.cuda.is_available() and self.ngpu > 0) else "cpu")
+data = SRDataLoader(data_dir=hparams.data_dir, batch_size=hparams.batch_size)
+data.setup('fit')
 
-        self.netG = Generator().to(self.device)
-        self.netD = Discriminator().to(self.device)
-        self.perceptual = PerceptionNet().to(self.device)
-
-        self.generated_imgs = None
-        self.last_imgs = None
-
-    def forward(self, z):
-        return self.netG(z)
-
-    def adversarial_loss(self, y_hat, y):
-        return F.binary_cross_entropy(y_hat, y)
-
-    def content_loss(self, fake, real):
-        return F.mse_loss(self.perceptual(fake), self.perceptual(real))
-
-    def training_step(self, batch, batch_nb, optimizer_idx):
-        lr: Tensor = batch[0]
-        hr: Tensor = batch[1]
-        lr = lr.to(device)
-        self.last_imgs: Tensor = hr.to(self.device)
-        if optimizer_idx == 0:
-            self.generated_imgs: Tensor = self(lr)
-            valid = torch.ones(hr.size(0), 1, device=self.device)
-            with torch.no_grad():
-                D_fake: Tensor = self.netD(self.generated_imgs)
-                real_activations = self.perceptual(self.hr)
-                fake_activations = self.perceptual(self.lr)
-            g_loss = self.adversarial_loss(D_fake, valid) + \
-                self.content_loss(fake_activations, real_activations)
-            tqdm_dict = {'g_loss': g_loss}
-            return OrderedDict({
-                'loss': g_loss,
-                'progress_bar': tqdm_dict,
-                'log': tqdm_dict
-            })
-
-        elif optimizer_idx == 1:
-            valid = torch.ones(hr.size(0), 1, device=self.device)
-            fake = torch.zeros(hr.size(0), 1, device=self.device)
-
-            real_loss = self.adversarial_loss(self.netD(hr), valid)
-            fake_loss = self.adversarial_loss(self.netD(self.netG(lr).detach()), fake)
-            d_loss = (fake_loss + real_loss)/2
-            tqdm_dict = {'d_loss': d_loss}
-            return OrderedDict({
-                'loss': d_loss,
-                'progress_bar': tqdm_dict,
-                'log': tqdm_dict
-            })
-
-    def configure_optimizers(self):
-        super().configure_optimizers()
-        optG = Adam(self.netG.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
-        optD = Adam(self.netD.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
-        return [optG, optD], []
-
-    def on_epoch_end(self):
-        # log sampled images
-        for lr, hr in val_loader:
-            lr = lr.to(self.device)
-        sample_imgs = self(lr)
-        grid = torchvision.utils.make_grid(sample_imgs)
-        self.logger.experiment.add_image(f'generated_images', grid, self.current_epoch)
-
-
-gan_model = GAN(hparams)
-data = SRDataLoader()
-# most basic trainer, uses good defaults (1 gpu)
+gan_model = SRGAN(hparams)
 checkpoint_callback = ModelCheckpoint(
-    filepath=os.path.join(os.getcwd(), 'models'),
     save_top_k=1,
     verbose=True,
     monitor='g_loss',
     mode='min',
-    prefix=''
+    prefix='concat'
 )
 
-trainer = pl.Trainer(gpus=1, checkpoint_callback=checkpoint_callback)
+checkpoint = torch.load('./models/pretrain_gen.ckpt', map_location=torch.device('cpu'))
+temp = {}
+for key, value in checkpoint['state_dict'].items():
+    if 'net' in key:
+        key = key.replace('net', 'netG')
+        temp[key] = value
+checkpoint['state_dict'] = temp
+print(checkpoint['state_dict'].keys())
+gan_model.load_state_dict(checkpoint['state_dict'], strict=False)
+
+trainer = pl.Trainer(checkpoint_callback=checkpoint_callback, max_epochs=15, callbacks=[LogImages()])
 trainer.fit(gan_model, datamodule=data)
+trainer.test(model, datamodule=data)
