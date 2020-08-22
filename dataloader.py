@@ -6,10 +6,21 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from pytorch_lightning import LightningDataModule
 
 
-def recursiveResize(img, factor: int):
+def recursiveResize(img: Image, factor: int = 2):
+    """
+    Recursively resizes an image by down scaling by 2,
+    repeats this for factor times
+    Args:
+        img (PIL.Image): image to be resized
+        factor (int): factor by which resizing is to take place. eg. if factor is 2, image will be downscaled
+        to half it's size twice, thereby final image with be 1/4th the original image size
+    Returns:
+
+    """
     for _ in range(factor):
         height, width = img.size
-        resize = Resize((height / 2, width / 2), interpolation=Image.BICUBIC)
+        print(height, width)
+        resize = Resize((int(height / 2), int(width / 2)), interpolation=Image.BICUBIC)
         img = resize(img)
     return img
 
@@ -20,15 +31,17 @@ class SRDataset(Dataset):
         self.img_dir = img_dir
         self.filenames = glob(self.img_dir)
         self.toTensor = ToTensor()
+        self.setSize = Resize((128, 128), interpolation=Image.BICUBIC)
 
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, index):
         img = Image.open(self.filenames[index])
+        img = self.setSize(img)
         lr_img = recursiveResize(img, 2)
-        hr_img = recursiveResize(img, 2)
-        interpolated_img = recursiveResize(lr_img, 128)
+        hr_img = img
+        interpolated_img = self.setSize(lr_img)
         lr_img, hr_img, interpolated_img = self.toTensor(lr_img), self.toTensor(hr_img), self.toTensor(interpolated_img)
         return lr_img, hr_img, interpolated_img
 

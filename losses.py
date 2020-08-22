@@ -37,8 +37,8 @@ class DownScaleLoss(nn.Module):
                 target [Tensor]: input image for that prediction
         """
         super(DownScaleLoss, self).__init__()
-        self.resize = Resize(size=(size, size), interpolation=BICUBIC)
+        self.size = size
 
     def forward(self, pred: Tensor, target: Tensor):
-        downscaled = self.resize(pred)
+        downscaled = F.interpolate(pred, (self.size, self.size))
         return F.mse_loss(downscaled, target)

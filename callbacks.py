@@ -38,5 +38,5 @@ class CustomCheckpoint(Callback):
     def on_epoch_end(self, trainer: Trainer, pl_module: SRGAN):
         if trainer.current_epoch % self.run_every_e == 0:
             torch.save(pl_module.netG, os.path.join(self.save_dir, f"generator_{trainer.current_epoch}.ckpt"))
-            if trainer.current_epoch > self.save_last_k:
+            if trainer.current_epoch >= self.save_last_k:
                 os.remove(os.path.join(self.save_dir, f"generator_{trainer.current_epoch - self.save_last_k}.ckpt"))

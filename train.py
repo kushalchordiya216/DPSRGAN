@@ -53,6 +53,6 @@ for lr, hr, interpolate_hr in data.val_dataloader():
         save_image(interpolate_hr, f)
 
 trainer = pl.Trainer(checkpoint_callback=checkpoint_callback, max_epochs=hparams.epochs,
-                     callbacks=[LogImages(), CustomCheckpoint(save_dir=hparams.model_save_dir)])
+                     callbacks=[LogImages(), CustomCheckpoint(save_dir=hparams.model_save_dir, save_last_k=2)])
 trainer.fit(gan_model, datamodule=data)
 trainer.test(gan_model, datamodule=data)
