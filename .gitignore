@@ -8,3 +8,4 @@ sr/*
 images/*
 keras/*
 lightning_logs/*
+models/*
