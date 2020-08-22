@@ -1,17 +1,13 @@
-import os
 from argparse import Namespace
-from collections import OrderedDict
-from PIL import Image
-from torchvision.transforms import ToPILImage,  ToTensor
 from torchvision.utils import save_image
 
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from dataloader import SRDataLoader, recursiveResize
-from models import SRGAN, PreTrainGenModel
-from callbacks import LogImages
+from dataloader import SRDataLoader
+from models import SRGAN
+from callbacks import LogImages, CustomCheckpoint
 
 args = {
     'batch_size': 1,
@@ -19,6 +15,9 @@ args = {
     'b1': 0.5,
     'b2': 0.999,
     'data_dir': './images/*.jpg',
+    'epochs': 15,
+    'downscale_loss': True,
+    'model_save_dir': './models/'
 }
 hparams = Namespace(**args)
 
@@ -27,11 +26,13 @@ data.setup('fit')
 
 gan_model = SRGAN(hparams)
 checkpoint_callback = ModelCheckpoint(
-    save_top_k=1,
+    filepath=hparams.model_save_dir,
+    save_top_k=2,
     verbose=True,
     monitor='g_loss',
     mode='min',
-    prefix='concat'
+    prefix='concat_downscale',
+    save_last=True
 )
 
 checkpoint = torch.load('./models/pretrain_gen.ckpt', map_location=torch.device('cpu'))
@@ -41,9 +42,17 @@ for key, value in checkpoint['state_dict'].items():
         key = key.replace('net', 'netG')
         temp[key] = value
 checkpoint['state_dict'] = temp
-print(checkpoint['state_dict'].keys())
 gan_model.load_state_dict(checkpoint['state_dict'], strict=False)
 
-trainer = pl.Trainer(checkpoint_callback=checkpoint_callback, max_epochs=15, callbacks=[LogImages()])
+for lr, hr, interpolate_hr in data.val_dataloader():
+    with open('input.png', 'wb+') as f:
+        save_image(lr, f)
+    with open('ground_truth.png', 'wb+') as f:
+        save_image(hr, f)
+    with open('interpolated.png', 'wb+') as f:
+        save_image(interpolate_hr, f)
+
+trainer = pl.Trainer(checkpoint_callback=checkpoint_callback, max_epochs=hparams.epochs,
+                     callbacks=[LogImages(), CustomCheckpoint(save_dir=hparams.model_save_dir)])
 trainer.fit(gan_model, datamodule=data)
-trainer.test(model, datamodule=data)
+trainer.test(gan_model, datamodule=data)

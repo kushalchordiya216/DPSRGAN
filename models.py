@@ -2,21 +2,17 @@ import os
 from collections import OrderedDict
 
 import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.optim import Adam
-import torchvision
-from torchvision.transforms import ToPILImage
 
-from networks import Generator, Discriminator, PerceptionNet
-from dataloader import SRDataLoader, recursiveResize
-from losses import ContentLoss
+from networks import Generator, Discriminator
+from losses import ContentLoss, DownScaleLoss
 
 content_loss = ContentLoss()
+downscale_loss = DownScaleLoss()
 
 
 class PreTrainGenModel(pl.LightningModule):
@@ -65,7 +61,8 @@ class SRGAN(pl.LightningModule):
     def forward(self, z):
         return self.netG(z)
 
-    def adversarial_loss(self, y_hat, y):
+    @staticmethod
+    def adversarial_loss(y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
 
     def training_step(self, batch, batch_nb, optimizer_idx):
@@ -78,8 +75,10 @@ class SRGAN(pl.LightningModule):
             # with torch.no_grad():
             D_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
 
-            g_loss = 0.001 * self.adversarial_loss(D_fake, real) + \
-                content_loss(self.generated_imgs, hr)
+            g_loss = 0.001 * self.adversarial_loss(D_fake, real) + content_loss(self.generated_imgs, hr)
+
+            if self.hparams.downscale_loss:
+                g_loss += downscale_loss(self.generated_imgs, lr)
 
             tqdm_dict = {'g_loss': g_loss}
             output = OrderedDict({
@@ -91,14 +90,14 @@ class SRGAN(pl.LightningModule):
 
         elif optimizer_idx == 0:
             print("Disc train")
-            real = (0.3)*torch.rand((hr.size(0), 1, 5, 5), device=self.device)+0.7
-            fake = (0.3)*torch.rand((hr.size(0), 1, 5, 5), device=self.device)
-            # label smoothing, betwen 0.7-1.0 for real and 0.0 to 1.2 for fake
+            real = 0.3 * torch.rand((hr.size(0), 1, 5, 5), device=self.device) + 0.7
+            fake = 0.3 * torch.rand((hr.size(0), 1, 5, 5), device=self.device)
+            # label smoothing, between 0.7-1.0 for real and 0.0 to 1.2 for fake
 
             real_loss = self.adversarial_loss(self.netD(hr, interpolated_lr), real)
             fake_loss = self.adversarial_loss(self.netD(self.generated_imgs.detach(), interpolated_lr), fake)
 
-            d_loss = (fake_loss + real_loss)/2
+            d_loss = (fake_loss + real_loss) / 2
             tqdm_dict = {'d_loss': d_loss}
             output = OrderedDict({
                 'loss': d_loss,
@@ -114,7 +113,7 @@ class SRGAN(pl.LightningModule):
         real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
         val_loss = self.adversarial_loss(D_fake, real) + \
-            content_loss(sr, hr)
+                   content_loss(sr, hr)
         return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):
@@ -122,6 +121,6 @@ class SRGAN(pl.LightningModule):
         return {'val_loss': val_loss_mean}
 
     def configure_optimizers(self):
-        optG = Adam(self.netG.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
-        optD = Adam(self.netD.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
-        return [optD, optG], []  # second array is for lr schedulers if needed
+        opt_g = Adam(self.netG.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
+        opt_d = Adam(self.netD.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
+        return [opt_d, opt_g], []  # second array is for lr schedulers if needed

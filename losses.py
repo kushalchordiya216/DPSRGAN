@@ -7,17 +7,16 @@ from PIL.Image import BICUBIC
 
 
 class ContentLoss(nn.Module):
-    """Takes in the generated image and the target image, and passes both (separately) through a frozen VGG graph
-    Then the output of the VGG activation layers is then used to calculate the Content loss by taking pizel-wise MSE
-
-
-    Parameters
-    ----------
-        pred [Tensor] : generated prediction by the generator network
-        target [Tensor]: Target or ground truth image for given prediction
-    """
-
     def __init__(self):
+        """Takes in the generated image and the target image, and passes both (separately) through a frozen VGG graph
+            Then the output of the VGG activation layers is then used to calculate the Content loss by taking pizel-wise MSE
+
+
+            Args
+            ----------
+                pred [Tensor] : generated prediction by the generator network
+                target [Tensor]: Target or ground truth image for given prediction
+        """
         super(ContentLoss, self).__init__()
         self.VGG = PerceptionNet()
 
@@ -27,16 +26,16 @@ class ContentLoss(nn.Module):
 
 
 class DownScaleLoss(nn.Module):
-    """
-    Takes the generatd image and the input image, downscales(resizes) the generated images to the dimensions
-    of input image and calculates downscale loss by taking pixel-wise MSE loss
-    Parameters
-    ----------
-        pred [Tensor] : generated prediction by the generator network
-        target [Tensor]: input image for that prediction
-    """
-
     def __init__(self, size: int = 32):
+        """
+            Takes the generated image and the input image, downscales(resizes) the generated images to the dimensions
+            of input image and calculates downscale loss by taking pixel-wise MSE loss
+
+            Args
+            ----------
+                pred [Tensor] : generated prediction by the generator network
+                target [Tensor]: input image for that prediction
+        """
         super(DownScaleLoss, self).__init__()
         self.resize = Resize(size=(size, size), interpolation=BICUBIC)
 
