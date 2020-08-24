@@ -9,3 +9,4 @@ images/*
 keras/*
 lightning_logs/*
 models/*
+*.png

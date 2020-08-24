@@ -112,8 +112,7 @@ class SRGAN(pl.LightningModule):
         D_fake = self.netD(sr, interpolated_lr)
         real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
-        val_loss = self.adversarial_loss(D_fake, real) + \
-                   content_loss(sr, hr)
+        val_loss = self.adversarial_loss(D_fake, real) + content_loss(sr, hr)
         return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):
