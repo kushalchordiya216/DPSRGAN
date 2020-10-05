@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from networks import PerceptionNet
+from src.networks import PerceptionNet
 from torchvision.transforms import Resize
 from PIL.Image import BICUBIC
 

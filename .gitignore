@@ -11,3 +11,4 @@ lightning_logs/*
 models/*
 *.png
 .mypy_cache?*
+*/__pycache__/*

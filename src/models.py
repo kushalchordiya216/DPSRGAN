@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.optim import Adam
 
-from networks import Generator, Discriminator
-from losses import ContentLoss, DownScaleLoss
+from src.networks import Generator, Discriminator
+from src.losses import ContentLoss, DownScaleLoss
 
 content_loss = ContentLoss()
 

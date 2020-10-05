@@ -1,9 +1,9 @@
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from dataloader import SRDataLoader
-from models import PreTrainGenModel
-from callbacks import LogImages
+from utils.dataloader import SRDataLoader
+from utils.callbacks import LogImages
+from src.models import PreTrainGenModel
 
 data = SRDataLoader(batch_size=32)
 data.setup()
@@ -14,6 +14,7 @@ checkpoint_callback = ModelCheckpoint(
     verbose=True,
 )
 
-trainer = pl.Trainer(checkpoint_callback=checkpoint_callback, max_epochs=15, callbacks=[LogImages()])
+trainer = pl.Trainer(checkpoint_callback=checkpoint_callback,
+                     max_epochs=15, callbacks=[LogImages()])
 trainer.fit(model, datamodule=data)
 trainer.test(model, datamodule=data)

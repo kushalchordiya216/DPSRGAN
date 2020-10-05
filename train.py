@@ -3,8 +3,8 @@ from argparse import Namespace
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from dataloader import SRDataLoader
-from models import SRGAN
+from utils.dataloader import SRDataLoader
+from src.models import SRGAN
 
 args = {
     'batch_size': 1,
@@ -18,8 +18,6 @@ args = {
 }
 hparams = Namespace(**args)
 
-data = SRDataLoader(data_dir=hparams.data_dir, batch_size=hparams.batch_size)
-data.setup('fit')
 
 gan_model = SRGAN()
 checkpoint_callback = ModelCheckpoint(
