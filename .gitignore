@@ -10,3 +10,4 @@ keras/*
 lightning_logs/*
 models/*
 *.png
+.mypy_cache?*

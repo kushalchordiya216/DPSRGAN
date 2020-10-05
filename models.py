@@ -1,4 +1,3 @@
-import os
 from collections import OrderedDict
 
 import pytorch_lightning as pl
@@ -30,7 +29,8 @@ class PreTrainGenModel(pl.LightningModule):
         loss = F.mse_loss(sr, hr) + content_loss(sr, hr)
 
         result = pl.TrainResult(loss)
-        result.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)
+        result.log('train_loss', loss, on_epoch=True,
+                   prog_bar=True, logger=True)
         return result
 
     def validation_step(self, batch, batch_idx):
@@ -75,7 +75,9 @@ class SRGAN(pl.LightningModule):
             # with torch.no_grad():
             D_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
 
-            g_loss = 0.001 * self.adversarial_loss(D_fake, real) + content_loss(self.generated_imgs, hr)
+            g_loss = 0.001 * \
+                self.adversarial_loss(D_fake, real) + \
+                content_loss(self.generated_imgs, hr)
 
             if self.hparams.downscale_loss:
                 g_loss += downscale_loss(self.generated_imgs, lr)
@@ -90,12 +92,15 @@ class SRGAN(pl.LightningModule):
 
         elif optimizer_idx == 0:
             print("Disc train")
-            real = 0.3 * torch.rand((hr.size(0), 1, 5, 5), device=self.device) + 0.7
+            real = 0.3 * torch.rand((hr.size(0), 1, 5, 5),
+                                    device=self.device) + 0.7
             fake = 0.3 * torch.rand((hr.size(0), 1, 5, 5), device=self.device)
             # label smoothing, between 0.7-1.0 for real and 0.0 to 1.2 for fake
 
-            real_loss = self.adversarial_loss(self.netD(hr, interpolated_lr), real)
-            fake_loss = self.adversarial_loss(self.netD(self.generated_imgs.detach(), interpolated_lr), fake)
+            real_loss = self.adversarial_loss(
+                self.netD(hr, interpolated_lr), real)
+            fake_loss = self.adversarial_loss(
+                self.netD(self.generated_imgs.detach(), interpolated_lr), fake)
 
             d_loss = (fake_loss + real_loss) / 2
             tqdm_dict = {'d_loss': d_loss}
@@ -120,6 +125,9 @@ class SRGAN(pl.LightningModule):
         return {'val_loss': val_loss_mean}
 
     def configure_optimizers(self):
-        opt_g = Adam(self.netG.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
-        opt_d = Adam(self.netD.parameters(), lr=0.0002, betas=(0.5, 0.999), eps=1e-8)
-        return [opt_d, opt_g], []  # second array is for lr schedulers if needed
+        opt_g = Adam(self.netG.parameters(), lr=0.0002,
+                     betas=(0.5, 0.999), eps=1e-8)
+        opt_d = Adam(self.netD.parameters(), lr=0.0002,
+                     betas=(0.5, 0.999), eps=1e-8)
+        # second array is for lr schedulers if needed
+        return [opt_d, opt_g], []

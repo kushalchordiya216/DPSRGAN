@@ -1,17 +1,15 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from torch import Tensor
-from torch.optim import Adam
-from torchsummary import summary
 from torchvision import models
 
 
 class GeneratorHead(nn.Module):
     def __init__(self):
         super(GeneratorHead, self).__init__()
-        self.conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=9, stride=1, padding=4)
+        self.conv = nn.Conv2d(in_channels=3, out_channels=64,
+                              kernel_size=9, stride=1, padding=4)
         self.PReLU = nn.PReLU(64)
 
     def forward(self, inp: Tensor):
@@ -21,13 +19,14 @@ class GeneratorHead(nn.Module):
 class ResBlock(nn.Module):
     def __init__(self):
         super(ResBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv = nn.Conv2d(in_channels=64, out_channels=64,
+                              kernel_size=3, stride=1, padding=1)
         self.bn = nn.BatchNorm2d(num_features=64)
         self.PReLU = nn.PReLU(64)
 
     def forward(self, inp: Tensor):
         X: Tensor = self.PReLU(self.bn(self.conv(inp)))
-        X: Tensor = self.bn(self.conv(X))
+        X = self.bn(self.conv(X))
         return X.add(inp)  # Skip connections
 
 
@@ -35,7 +34,8 @@ class UpSample(nn.Module):
     def __init__(self):
         super(UpSample, self).__init__()
         self.main = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=64, out_channels=256,
+                      kernel_size=3, stride=1, padding=1),
             nn.PixelShuffle(upscale_factor=2),
             nn.PReLU(64)
         )
@@ -48,27 +48,30 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
         self.head = GeneratorHead()
-        self.conv1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=3, stride=1, padding=1)
         self.bn = nn.BatchNorm2d(num_features=64)
         self.RRDB = nn.Sequential(*[ResBlock() for _ in range(16)])
-        self.conv2 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=9, stride=1, padding=4)
+        self.conv2 = nn.Conv2d(
+            in_channels=64, out_channels=3, kernel_size=9, stride=1, padding=4)
         self.tail = nn.Sequential(UpSample(), UpSample(), self.conv2)
 
     def forward(self, inp: Tensor) -> Tensor:
         preRRDB: Tensor = self.head(inp)
         X: Tensor = self.RRDB(preRRDB)
-        X: Tensor = self.bn(self.conv1(X))
-        X: Tensor = X.add(preRRDB)  # skip conn
-        X: Tensor = self.tail(X)
+        X = self.bn(self.conv1(X))
+        X = X.add(preRRDB)  # skip conn
+        X = self.tail(X)
         return X
 
-# ################################################ Discriminator ############################################
+# ############# Discriminator ##############
 
 
 class DiscriminatorHead(nn.Module):
     def __init__(self):
         super(DiscriminatorHead, self).__init__()
-        self.conv = nn.Conv2d(in_channels=6, out_channels=64, kernel_size=3, stride=1)
+        self.conv = nn.Conv2d(
+            in_channels=6, out_channels=64, kernel_size=3, stride=1)
         self.lrelu = nn.LeakyReLU(negative_slope=0.2)
 
     def forward(self, inp: Tensor, target: Tensor):
@@ -79,7 +82,9 @@ class DiscriminatorHead(nn.Module):
 class DiscriminatorConvBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, stride: int):
         super(DiscriminatorConvBlock, self).__init__()
-        self.main = nn.Sequential(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3,
+        self.main = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+                                            out_channels=out_channels,
+                                            kernel_size=3,
                                             stride=stride),
                                   nn.BatchNorm2d(num_features=out_channels),
                                   nn.LeakyReLU(negative_slope=0.2))
@@ -105,7 +110,8 @@ class DiscriminatorTail(nn.Module):
                 nn.LeakyReLU(negative_slope=0.2)
             )
         else:
-            self.main = nn.Sequential(nn.Conv2d(in_channels=512, out_channels=1, kernel_size=3,
+            self.main = nn.Sequential(nn.Conv2d(in_channels=512,
+                                                out_channels=1, kernel_size=3,
                                                 stride=1, padding=1))
 
     def forward(self, inp: Tensor):
@@ -128,11 +134,11 @@ class Discriminator(nn.Module):
 
     def forward(self, inp: Tensor, target: Tensor) -> Tensor:
         X: Tensor = self.head(inp, target)
-        X: Tensor = self.body(X)
-        X: Tensor = self.tail(X)
+        X = self.body(X)
+        X = self.tail(X)
         return X
 
-# ################################################# Perceptual Net ###########################################
+# ######## Perceptual Net ###########
 
 
 class PerceptionNet(nn.Module):
