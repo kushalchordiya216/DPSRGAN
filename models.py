@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import List
 
 import pytorch_lightning as pl
 import torch
@@ -11,20 +12,23 @@ from networks import Generator, Discriminator
 from losses import ContentLoss, DownScaleLoss
 
 content_loss = ContentLoss()
-downscale_loss = DownScaleLoss()
 
 
 class PreTrainGenModel(pl.LightningModule):
     def __init__(self):
         super().__init__()
+        self.gpu = torch.cuda.is_available()
         self.netG = Generator()
-        self.netG.cuda()
+        if self.gpu:
+            self.netG = self.netG.cuda()
 
     def forward(self, x):
         return self.netG(x)
 
     def training_step(self, batch, batch_idx):
         lr, hr, _ = batch
+        if self.gpu:
+            lr, hr = lr.cuda(), hr.cuda()
         sr = self(lr)
         loss = F.mse_loss(sr, hr) + content_loss(sr, hr)
 
@@ -35,6 +39,8 @@ class PreTrainGenModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         lr, hr, _ = batch
+        if self.gpu:
+            lr, hr = lr.cuda(), hr.cuda()
         sr = self(lr)
         loss = F.mse_loss(sr, hr) + content_loss(sr, hr)
         return {'val_loss': loss}
@@ -48,15 +54,17 @@ class PreTrainGenModel(pl.LightningModule):
 
 
 class SRGAN(pl.LightningModule):
-    def __init__(self, hparams):
+    def __init__(self):
         super(SRGAN, self).__init__()
-        self.hparams = hparams
-
+        self.gpu = torch.cuda.is_available()
         self.netG: nn.Module = Generator()
         self.netD: nn.Module = Discriminator()
+        if self.gpu:
+            self.netD = self.netD.cuda()
+            self.netG = self.netG.cuda()
 
-        self.generated_imgs = None
-        self.last_imgs = None
+        self.generated_imgs: Tensor = None
+        self.last_imgs: Tensor = None
 
     def forward(self, z):
         return self.netG(z)
@@ -65,22 +73,21 @@ class SRGAN(pl.LightningModule):
     def adversarial_loss(y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
 
-    def training_step(self, batch, batch_nb, optimizer_idx):
+    def training_step(self, batch: List[Tensor], batch_nb: int, optimizer_idx: int):
         lr, hr, interpolated_lr = batch
-        self.last_imgs: Tensor = hr
-        self.generated_imgs: Tensor = self(lr)
+        if self.gpu:
+            lr, hr, interpolated_lr = lr.cuda(), hr.cuda(), interpolated_lr.cuda()
+        self.last_imgs = hr
+        self.generated_imgs = self(lr)
+
         if optimizer_idx == 1:
             real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
-            # with torch.no_grad():
             D_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
 
             g_loss = 0.001 * \
                 self.adversarial_loss(D_fake, real) + \
                 content_loss(self.generated_imgs, hr)
-
-            if self.hparams.downscale_loss:
-                g_loss += downscale_loss(self.generated_imgs, lr)
 
             tqdm_dict = {'g_loss': g_loss}
             output = OrderedDict({
@@ -111,8 +118,10 @@ class SRGAN(pl.LightningModule):
             })
             return output
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch: List[Tensor], batch_idx):
         lr, hr, interpolated_lr = batch
+        if self.gpu:
+            lr, hr, interpolated_lr = lr.cuda(), hr.cuda(), interpolated_lr.cuda()
         sr = self(lr)
         D_fake = self.netD(sr, interpolated_lr)
         real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
