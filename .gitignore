@@ -1,14 +1,9 @@
 .vscode
-data/
 *.jpg
 *.png
 .idea/
 *.pyc
-sr/*
-images/*
-keras/*
 lightning_logs/*
-models/*
 *.png
 .mypy_cache?*
 */__pycache__/*

@@ -29,3 +29,6 @@ checkpoint_callback = ModelCheckpoint(
     prefix='concat_downscale',
     save_last=True
 )
+
+data = SRDataLoader(data_dir=hparams.data_dir)
+data.setup('fit')

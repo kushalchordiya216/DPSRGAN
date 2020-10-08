@@ -17,7 +17,7 @@ content_loss = ContentLoss()
 class PreTrainGenModel(pl.LightningModule):
     def __init__(self):
         super().__init__()
-        self.gpu = torch.cuda.is_available()
+        self.gpu: bool = torch.cuda.is_available()
         self.netG = Generator()
         if self.gpu:
             self.netG = self.netG.cuda()
@@ -25,7 +25,7 @@ class PreTrainGenModel(pl.LightningModule):
     def forward(self, x):
         return self.netG(x)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: List[Tensor], batch_idx):
         lr, hr, _ = batch
         if self.gpu:
             lr, hr = lr.cuda(), hr.cuda()
@@ -37,7 +37,7 @@ class PreTrainGenModel(pl.LightningModule):
                    prog_bar=True, logger=True)
         return result
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch: List[Tensor], batch_idx):
         lr, hr, _ = batch
         if self.gpu:
             lr, hr = lr.cuda(), hr.cuda()
@@ -56,7 +56,7 @@ class PreTrainGenModel(pl.LightningModule):
 class SRGAN(pl.LightningModule):
     def __init__(self):
         super(SRGAN, self).__init__()
-        self.gpu = torch.cuda.is_available()
+        self.gpu: bool = torch.cuda.is_available()
         self.netG: nn.Module = Generator()
         self.netD: nn.Module = Discriminator()
         if self.gpu:
@@ -73,7 +73,7 @@ class SRGAN(pl.LightningModule):
     def adversarial_loss(y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
 
-    def training_step(self, batch: List[Tensor], batch_nb: int, optimizer_idx: int):
+    def training_step(self, batch: List[Tensor], batch_nb, optimizer_idx: int):
         lr, hr, interpolated_lr = batch
         if self.gpu:
             lr, hr, interpolated_lr = lr.cuda(), hr.cuda(), interpolated_lr.cuda()
