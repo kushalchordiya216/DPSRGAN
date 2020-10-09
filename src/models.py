@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
@@ -9,12 +10,12 @@ from torch import Tensor
 from torch.optim import Adam
 
 from src.networks import Generator, Discriminator
-from src.losses import ContentLoss, DownScaleLoss
+from src.losses import ContentLoss
 
 content_loss = ContentLoss()
 
 
-class PreTrainGenModel(pl.LightningModule):
+class SRResNet(pl.LightningModule):
     def __init__(self):
         super().__init__()
         self.gpu: bool = torch.cuda.is_available()
@@ -54,17 +55,20 @@ class PreTrainGenModel(pl.LightningModule):
 
 
 class SRGAN(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, pretrain_gen: str, patch: bool = True, concat: bool = True):
         super(SRGAN, self).__init__()
+        if not pretrain_gen:
+            raise Exception("No path given for pretrain generator checkpoint")
+        self.concat = concat
+        self.patch = patch
         self.gpu: bool = torch.cuda.is_available()
-        self.netG: nn.Module = Generator()
-        self.netD: nn.Module = Discriminator()
+        self.netG: nn.Module = Generator.load_from_checkpoint(pretrain_gen)
+        self.netD: nn.Module = Discriminator(patch=patch, concat=concat)
         if self.gpu:
             self.netD = self.netD.cuda()
             self.netG = self.netG.cuda()
 
-        self.generated_imgs: Tensor = None
-        self.last_imgs: Tensor = None
+        self.generated_imgs: Tensor = torch.empty(3, 128, 128)
 
     def forward(self, z):
         return self.netG(z)
@@ -77,17 +81,14 @@ class SRGAN(pl.LightningModule):
         lr, hr, interpolated_lr = batch
         if self.gpu:
             lr, hr, interpolated_lr = lr.cuda(), hr.cuda(), interpolated_lr.cuda()
-        self.last_imgs = hr
         self.generated_imgs = self(lr)
 
         if optimizer_idx == 1:
             real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
-            D_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
+            d_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
 
-            g_loss = 0.001 * \
-                self.adversarial_loss(D_fake, real) + \
-                content_loss(self.generated_imgs, hr)
+            g_loss = 0.001 * self.adversarial_loss(d_fake, real) + content_loss(self.generated_imgs, hr)
 
             tqdm_dict = {'g_loss': g_loss}
             output = OrderedDict({
@@ -123,10 +124,10 @@ class SRGAN(pl.LightningModule):
         if self.gpu:
             lr, hr, interpolated_lr = lr.cuda(), hr.cuda(), interpolated_lr.cuda()
         sr = self(lr)
-        D_fake = self.netD(sr, interpolated_lr)
+        d_fake = self.netD(sr, interpolated_lr)
         real = torch.ones((hr.size(0), 1, 5, 5), device=self.device)
 
-        val_loss = self.adversarial_loss(D_fake, real) + content_loss(sr, hr)
+        val_loss = self.adversarial_loss(d_fake, real) + content_loss(sr, hr)
         return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):

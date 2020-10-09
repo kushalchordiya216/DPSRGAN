@@ -64,19 +64,22 @@ class Generator(nn.Module):
         X = self.tail(X)
         return X
 
+
 # ############# Discriminator ##############
 
 
 class DiscriminatorHead(nn.Module):
-    def __init__(self):
+    def __init__(self, concat: bool = True):
         super(DiscriminatorHead, self).__init__()
+        self.concat = concat
         self.conv = nn.Conv2d(
             in_channels=6, out_channels=64, kernel_size=3, stride=1)
         self.lrelu = nn.LeakyReLU(negative_slope=0.2)
 
-    def forward(self, inp: Tensor, target: Tensor):
-        concat: Tensor = torch.cat((inp, target), 1)
-        return self.lrelu(self.conv(concat))
+    def forward(self, inp: Tensor, target: Tensor = torch.empty(1, 1)):
+        if self.concat:
+            inp: Tensor = torch.cat((inp, target), 1)
+        return self.lrelu(self.conv(inp))
 
 
 class DiscriminatorConvBlock(nn.Module):
@@ -94,14 +97,18 @@ class DiscriminatorConvBlock(nn.Module):
 
 
 class Flatten(nn.Module):
-    def forward(self, X: Tensor):
-        return X.view(X.size(0), -1)
+    def forward(self, x: Tensor):
+        return x.view(x.size(0), -1)
 
 
 class DiscriminatorTail(nn.Module):
     def __init__(self, patch: bool = True):
         super(DiscriminatorTail, self).__init__()
         if not patch:
+            print(
+                "\033[93m If you choose to have a non-patch discriminator, "
+                "make sure the discriminator architecture is on accordance with your image size\033[0m"
+            )
             self.main = nn.Sequential(
                 Flatten(),
                 nn.Linear(in_features=12800, out_features=1024),
@@ -119,9 +126,9 @@ class DiscriminatorTail(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, patch: bool = True):
+    def __init__(self, patch: bool = True, concat: bool = True):
         super(Discriminator, self).__init__()
-        self.head = DiscriminatorHead()
+        self.head = DiscriminatorHead(concat=concat)
         self.body = nn.Sequential(DiscriminatorConvBlock(64, 64, 2),
                                   DiscriminatorConvBlock(64, 128, 1),
                                   DiscriminatorConvBlock(128, 128, 2),
@@ -133,10 +140,11 @@ class Discriminator(nn.Module):
         self.tail = DiscriminatorTail(patch=True)
 
     def forward(self, inp: Tensor, target: Tensor) -> Tensor:
-        X: Tensor = self.head(inp, target)
-        X = self.body(X)
-        X = self.tail(X)
-        return X
+        x: Tensor = self.head(inp, target)
+        x = self.body(x)
+        x = self.tail(x)
+        return x
+
 
 # ######## Perceptual Net ###########
 

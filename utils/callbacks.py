@@ -5,16 +5,12 @@ from pytorch_lightning import Callback
 from pytorch_lightning import Trainer, LightningModule
 from torchvision.utils import save_image
 
-from utils.dataloader import SRDataLoader
 from src.models import SRGAN
-
-data = SRDataLoader(data_dir='images/*.jpg')
-data.setup()
 
 
 class LogImages(Callback):
     def on_epoch_end(self, trainer: Trainer, pl_module: LightningModule):
-        for lr, _, _ in data.val_dataloader():
+        for lr, _, _ in trainer.datamodule.val_dataloader():
             preds = pl_module.netG(lr)
             with open(f'preds{trainer.current_epoch}.png', 'wb+') as f:
                 save_image(preds, f, nrow=8)

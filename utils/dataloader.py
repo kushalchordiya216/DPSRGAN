@@ -1,4 +1,4 @@
-from glob import glob
+import os
 from PIL import Image
 import torch
 from torchvision.transforms import Resize, ToTensor
@@ -26,12 +26,12 @@ def recursiveResize(img: Image, factor: int = 2):
 
 
 class SRDataset(Dataset):
-    def __init__(self, img_dir: str = './images/*.jpg'):
+    def __init__(self, data_dir: str = 'images/', img_size: int = 128):
         super(SRDataset, self).__init__()
-        self.img_dir = img_dir
-        self.filenames = glob(self.img_dir)
+        self.img_dir = data_dir
+        self.filenames = os.listdir(self.img_dir)
         self.toTensor = ToTensor()
-        self.setSize = Resize((128, 128), interpolation=Image.BICUBIC)
+        self.setSize = Resize((img_size, img_size), interpolation=Image.BICUBIC)
 
     def __len__(self):
         return len(self.filenames)
@@ -47,22 +47,23 @@ class SRDataset(Dataset):
 
 
 class SRDataLoader(LightningDataModule):
-    def __init__(self, data_dir: str = "./images/*.jpg", batch_size: int = 32):
+    def __init__(self, data_dir: str = "images/", batch_size: int = 32, img_size: int = 128):
         super().__init__()
         self.batch_size = batch_size
         self.data_dir = data_dir
+        self.img_size = img_size
         self.train, self.val, self.test = None, None, None
 
     def setup(self, stage=None):
         self.train, self.val, self.test = random_split(
-            SRDataset(img_dir=self.data_dir), lengths=[4, 4, 202591], generator=torch.Generator().manual_seed(69))
+            SRDataset(data_dir=self.data_dir, img_size=self.img_size), lengths=[180000, 2059, 20000], generator=torch.Generator().manual_seed(0))
 
     def train_dataloader(self, *args, **kwargs):
         return DataLoader(self.train, batch_size=self.batch_size, num_workers=4, drop_last=True,
                           pin_memory=True)
 
     def val_dataloader(self, *args, **kwargs):
-        return DataLoader(self.val, batch_size=self.batch_size, num_workers=4, pin_memory=True)
+        return DataLoader(self.val, batch_size=self.batch_size, num_workers=4, pin_memory=True, drop_last=True)
 
     def test_dataloader(self, *args, **kwargs):
-        return DataLoader(self.test, batch_size=self.batch_size, num_workers=4, pin_memory=True)
+        return DataLoader(self.test, batch_size=self.batch_size, num_workers=4, pin_memory=True, drop_last=True)

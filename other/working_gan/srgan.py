@@ -39,8 +39,8 @@ for file in iterator:
         break
 """
 X_test = []
-for file in os.listdir('../celeba_val/X'):
-    img_path = str('../celeba_val/X/' + str(file))
+for file in os.listdir('../celeba_val/x'):
+    img_path = str('../celeba_val/x/' + str(file))
     pic = cv2.imread(img_path)
     X_test.append(pic)
 
