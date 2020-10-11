@@ -7,7 +7,8 @@ from src.models import SRResNet, SRGAN
 from utils.dataloader import SRDataLoader
 from utils.callbacks import LogImages
 
-parser = argparse.ArgumentParser(prog="Train.py", description="Script for training models on different architectures")
+parser = argparse.ArgumentParser(prog="Training script",
+                                 description="Script for training models on different architectures")
 
 parser.add_argument("batch_size", type=int, default=32,
                     help="number of images to be passed to the network for training one mini_batch")
@@ -15,11 +16,9 @@ parser.add_argument('epochs', type=int, default=50, help="number of epochs for w
 parser.add_argument('learning_rate', type=float, default=0.0002, help="learning rate for adam optimizer")
 parser.add_argument('beta_1', type=float, default=0.5, help="beta_1 value for Adam optimizer")
 parser.add_argument('beta_2', type=float, default=0.999, help="beta_2 value for Adam optimizer")
-parser.add_argument('data_dir', type=str, default="images/",
-                    help="name of the directory having high resolution images on which models are to be trained on")
-parser.add_argument('img_size', type=int, default=128,
-                    help='Size of generated images, '
-                         'note that all high resolution input images will also be resized to the same dimensions')
+parser.add_argument('data_dir', type=str, default='images/',
+                    help="relative path of the directory having HR images on which models are to be trained on")
+
 parser.add_argument('network', type=str, default='SRResNet', choices=['SRGAN', 'SRResNet'],
                     help='type of network, whether to train SRGAN or SRResNet')
 parser.add_argument('patch', type=bool, default=True, help="specify whether to use a patch discriminator")
@@ -38,11 +37,12 @@ if __name__ == '__main__':
         model = SRGAN(args.pretrain_gen, args.patch, args.concat)
     else:
         model = SRResNet()
-    data = SRDataLoader(data_dir=args.data_dir, batch_size=args.batch_size, img_size=args.img_size)
+    data = SRDataLoader(data_dir=args.data_dir, batch_size=args.batch_size)
+    data.setup('fit')
 
     checkpoint_callback = ModelCheckpoint(
         filepath=args.model_dir,
-        save_top_k=2,
+        save_top_k=args.save_best,
         verbose=True,
         monitor='g_loss',
         mode='min',
@@ -54,4 +54,5 @@ if __name__ == '__main__':
     if args.checkpoint:
         trainer: Trainer = Trainer(max_epochs=args.epochs, checkpoint_callback=checkpoint_callback,
                                    callbacks=[LogImages()], gpus=1, resume_from_checkpoint=args.checkpoint)
+
     trainer.fit(model=model, datamodule=data)

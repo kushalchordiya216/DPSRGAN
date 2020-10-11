@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.optim import Adam
+from torchvision.utils import save_image
 
 from src.networks import Generator, Discriminator
 from src.losses import ContentLoss
@@ -37,6 +38,13 @@ class SRResNet(pl.LightningModule):
         result.log('train_loss', loss, on_epoch=True,
                    prog_bar=True, logger=True)
         return result
+
+    def test_step(self, batch: List[Tensor], batch_idx: int):
+        lr, _, _ = batch
+        sr = self(lr)
+        with open(f'preds/{batch_idx}.png', 'wb+') as f:
+            save_image(sr, f)
+        pass
 
     def validation_step(self, batch: List[Tensor], batch_idx):
         lr, hr, _ = batch
@@ -118,6 +126,13 @@ class SRGAN(pl.LightningModule):
                 'log': tqdm_dict
             })
             return output
+
+    def test_step(self, batch: List[Tensor], batch_idx: int):
+        lr, _, _ = batch
+        sr = self(lr)
+        with open(f'preds/{batch_idx}.png', 'wb+') as f:
+            save_image(sr, f)
+        pass
 
     def validation_step(self, batch: List[Tensor], batch_idx):
         lr, hr, interpolated_lr = batch
