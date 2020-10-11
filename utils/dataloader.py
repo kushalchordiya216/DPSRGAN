@@ -1,9 +1,12 @@
 import os
+import shutil
+
 from PIL import Image
 import torch
 from torchvision.transforms import Resize, ToTensor
 from torch.utils.data import Dataset, DataLoader, random_split
 from pytorch_lightning import LightningDataModule
+import requests
 
 
 def recursiveResize(img: Image, factor: int = 2):
@@ -26,7 +29,7 @@ def recursiveResize(img: Image, factor: int = 2):
 
 
 class SRDataset(Dataset):
-    def __init__(self, data_dir: str = 'images/', img_size: int = 128):
+    def __init__(self, data_dir: str = 'images/train/', img_size: int = 128):
         super(SRDataset, self).__init__()
         self.img_dir = data_dir
         self.filenames = os.listdir(self.img_dir)
@@ -47,16 +50,45 @@ class SRDataset(Dataset):
 
 
 class SRDataLoader(LightningDataModule):
-    def __init__(self, data_dir: str = "images/", batch_size: int = 32, img_size: int = 128):
+    def __init__(self, data_dir: str = "images/", batch_size: int = 32):
         super().__init__()
         self.batch_size = batch_size
+
         self.data_dir = data_dir
-        self.img_size = img_size
+        self.train_dir = os.path.join(os.getcwd(), self.data_dir, 'train')
+        self.test_dir = os.path.join(os.getcwd(), self.data_dir, 'test')
+        os.mkdir(self.train_dir)
+        os.mkdir(self.test_dir)
+
+        self.img_size = 128
         self.train, self.val, self.test = None, None, None
 
+    def prepare_data(self, url: str):
+        self.download_data(url)
+        self.split_data()
+
+    def download_data(self, url: str):
+        req = requests.get(url)
+        with open(f'{self.data_dir}', 'wb+') as data_dir:
+            data_dir.write(req.content)
+
+    def split_data(self):
+        images = os.listdir(self.data_dir)
+        train = images[:int(0.8 * len(images))]
+        test = images[int(0.8 * len(images)):]
+        os.chdir(self.data_dir)
+        for img in train:
+            shutil.copy(img, self.train_dir)
+        for img in test:
+            shutil.copy(img, self.test_dir)
+
     def setup(self, stage=None):
-        self.train, self.val, self.test = random_split(
-            SRDataset(data_dir=self.data_dir, img_size=self.img_size), lengths=[180000, 2059, 20000], generator=torch.Generator().manual_seed(0))
+        if stage == "fit":
+            self.train, self.val = random_split(
+                SRDataset(data_dir=self.train_dir, img_size=self.img_size), lengths=[180000, 2059],
+                generator=torch.Generator().manual_seed(0))
+        elif stage == 'test':
+            self.test = SRDataset(data_dir=self.test_dir, img_size=self.img_size)
 
     def train_dataloader(self, *args, **kwargs):
         return DataLoader(self.train, batch_size=self.batch_size, num_workers=4, drop_last=True,
