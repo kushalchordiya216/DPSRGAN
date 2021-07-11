@@ -20,7 +20,10 @@ if __name__ == "__main__":
     if not args.model_path:
         print("Model path needs to be specified!")
         sys.exit(1)
-    os.mkdir("preds")
+    try:
+        os.mkdir("preds")
+    except FileExistsError:
+        pass
     if args.network == "SRGAN":
         model = SRGAN.load_from_checkpoint(args.model_path)
     else:

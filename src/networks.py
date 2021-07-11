@@ -29,6 +29,22 @@ class ResBlock(nn.Module):
         X = self.bn(self.conv(X))
         return X.add(inp)  # Skip connections
 
+class DilationResBlock(nn.Module):
+    def __init__(self):
+        super(DilationResBlock, self).__init__()
+        self.dconv = nn.Conv2d(in_channels=64, out_channels=64,
+                              kernel_size=3, stride=1, padding=1, dilation=2)
+        self.bn1 = nn.BatchNorm2d(num_features=64)
+        self.conv = nn.Conv2d(in_channels=64, out_channels=64,
+                              kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(num_features=64)
+        self.PReLU = nn.PReLU(64)
+
+    def forward(self, inp: Tensor):
+        X: Tensor = self.PReLU(self.bn2(self.conv(self.bn1(self.dconv(inp)))))
+        X = self.bn(self.conv(X))
+        return X.add(inp)  # Skip connections
+
 
 class UpSample(nn.Module):
     def __init__(self):
@@ -51,7 +67,7 @@ class Generator(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=64, out_channels=64,
                                kernel_size=3, stride=1, padding=1)
         self.bn = nn.BatchNorm2d(num_features=64)
-        self.RRDB = nn.Sequential(*[ResBlock() for _ in range(16)])
+        self.RRDB = nn.Sequential(*[DilationResBlock() if i%2==0 else ResBlock() for i in range(16)])
         self.conv2 = nn.Conv2d(
             in_channels=64, out_channels=3, kernel_size=9, stride=1, padding=4)
         self.tail = nn.Sequential(UpSample(), UpSample(), self.conv2)
