@@ -63,15 +63,20 @@ class SRResNet(pl.LightningModule):
 
 
 class SRGAN(pl.LightningModule):
-    def __init__(self, pretrain_gen: str, patch: bool = True, concat: bool = True):
+    def __init__(self, pretrain_gen: str = "", patch: bool = True, concat: bool = True):
         super(SRGAN, self).__init__()
-        if not pretrain_gen:
-            raise Exception("No path given for pretrain generator checkpoint")
         self.concat = concat
         self.patch = patch
         self.gpu: bool = torch.cuda.is_available()
-        self.netG: nn.Module = Generator.load_from_checkpoint(pretrain_gen)
+        self.netG: nn.Module = SRResNet()
         self.netD: nn.Module = Discriminator(patch=patch, concat=concat)
+        if not pretrain_gen:
+            print("""Warning: Pretrain generator checkpoint not given!
+        Training this model from scratch may lead to unwanted results!
+        If you're resuming training from a checkpoint or performing evaluation on a trained model, ignore this warning!""")
+        else:
+            self.netG.load_from_checkpoint(pretrain_gen)
+
         if self.gpu:
             self.netD = self.netD.cuda()
             self.netG = self.netG.cuda()
@@ -96,7 +101,9 @@ class SRGAN(pl.LightningModule):
 
             d_fake: Tensor = self.netD(self.generated_imgs, interpolated_lr)
 
-            g_loss = 0.001 * self.adversarial_loss(d_fake, real) + content_loss(self.generated_imgs, hr)
+            g_loss = 0.001 * \
+                self.adversarial_loss(d_fake, real) + \
+                content_loss(self.generated_imgs, hr)
 
             tqdm_dict = {'g_loss': g_loss}
             output = OrderedDict({

@@ -9,8 +9,10 @@ from utils.dataloader import SRDataLoader
 
 parser = argparse.ArgumentParser(prog="Testing script",
                                  description="A script for testing out trained models on a set of test images")
-parser.add_argument("model_path", type=str, help='path to the pretrained model checkpoint file')
-parser.add_argument("data_dir", type=str, help='path to directory where images are stored')
+parser.add_argument("model_path", type=str,
+                    help='path to the pretrained model checkpoint file')
+parser.add_argument("data_dir", type=str,
+                    help='path to directory where images are stored, partitioned into train and test sub directories')
 parser.add_argument("network", type=str, choices=["SRGAN", "SRResNet"], default="SRGAN",
                     help="type of network, either GAN or SRResNet")
 
