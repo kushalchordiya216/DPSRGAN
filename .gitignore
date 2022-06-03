@@ -7,3 +7,4 @@ lightning_logs/*
 *.png
 .mypy_cache?*
 */__pycache__/*
+.DS_Store

@@ -30,3 +30,26 @@ This will save the predicted images in the directory `./preds/`
 ```bash
 python3 --model_path <path to pretrained generator> --data_dir <path to directory containing LR images>
 ```
+
+## Architecture
+Generator:
+![Generator Architecture](images/generator_arch.png)
+Discriminator:
+![Discriminator Architecture](images/discriminator_arch.png)
+Training schematic:
+![Training schematic](images/schematic.png)
+## Comparison and Results
+![Picture grid](images/picgrid.png)
+## Citation
+```
+@INPROCEEDINGS{9417903,
+    author={Mirchandani, Kapil and Chordiya, Kushal},
+    booktitle={2021 6th International Conference for Convergence in Technology (I2CT)},
+    title={DPSRGAN: Dilation Patch Super-Resolution Generative Adversarial Networks},
+    year={2021},  
+    volume={},  
+    number={},  
+    pages={1-7},  
+    doi={10.1109/I2CT51068.2021.9417903}}
+```
+
