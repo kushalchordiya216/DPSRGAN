@@ -1,10 +1,8 @@
 .vscode
 *.jpg
-*.png
 .idea/
 *.pyc
 lightning_logs/*
-*.png
 .mypy_cache?*
 */__pycache__/*
 .DS_Store
