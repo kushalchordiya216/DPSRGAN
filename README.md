@@ -32,11 +32,11 @@ python3 --model_path <path to pretrained generator> --data_dir <path to director
 ```
 
 ## Architecture
-Generator:
+### Generator
 ![Generator Architecture](images/generator_arch.jpeg)
-Discriminator:
+### Discriminator
 ![Discriminator Architecture](images/discriminator_arch.jpeg)
-Training schematic:
+### Training schematic
 ![Training schematic](images/schematic.jpeg)
 ## Comparison and Results
 ![Picture grid](images/picgrid.jpeg)
